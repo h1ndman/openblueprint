@@ -364,6 +364,69 @@ export default function App() {
     e.target.value = "";
   };
 
+  // ---- image lightbox (2D gallery mirroring the grid) ----
+  const [lightbox, setLightbox] = useState(null); // { r, c } selected coords
+  const selRef = useRef(null);
+
+  const getGallery = () => {
+    const cells = [];
+    flatRows.forEach((rf, r) => {
+      flatSubs.forEach((cf, c) => {
+        const k = `${rf.row.id}|${cf.sub.id}`;
+        const u = state.cells[k]?.imageUrl;
+        if (u) cells.push({ r, c, key: k, url: u });
+      });
+    });
+    return { cells, nCols: flatSubs.length, nRows: flatRows.length };
+  };
+
+  const openLightbox = (key) => {
+    const { cells } = getGallery();
+    const hit = cells.find((x) => x.key === key);
+    if (hit) setLightbox({ r: hit.r, c: hit.c });
+  };
+  const lbClose = () => setLightbox(null);
+
+  // Move selection across (dc) within a row or vertically (dr) to nearby rows.
+  const moveSel = (dr, dc) =>
+    setLightbox((cur) => {
+      if (!cur) return cur;
+      const { cells } = getGallery();
+      if (dc !== 0) {
+        const row = cells.filter((x) => x.r === cur.r).sort((a, b) => a.c - b.c);
+        const cands =
+          dc > 0 ? row.filter((x) => x.c > cur.c) : row.filter((x) => x.c < cur.c).reverse();
+        return cands.length ? { r: cands[0].r, c: cands[0].c } : cur;
+      }
+      const rows = [...new Set(cells.map((x) => x.r))].sort((a, b) => a - b);
+      const cand = dr > 0 ? rows.filter((r) => r > cur.r) : rows.filter((r) => r < cur.r).reverse();
+      if (!cand.length) return cur;
+      const inRow = cells
+        .filter((x) => x.r === cand[0])
+        .sort((a, b) => Math.abs(a.c - cur.c) - Math.abs(b.c - cur.c));
+      return { r: cand[0], c: inRow[0].c };
+    });
+
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") lbClose();
+      else if (e.key === "ArrowRight") { e.preventDefault(); moveSel(0, 1); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); moveSel(0, -1); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); moveSel(-1, 0); }
+      else if (e.key === "ArrowDown") { e.preventDefault(); moveSel(1, 0); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightbox]);
+
+  // Smoothly slide the selected tile to center whenever selection changes.
+  useEffect(() => {
+    if (lightbox && selRef.current) {
+      selRef.current.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+    }
+  }, [lightbox]);
+
   // ---- derived flat layout ----
   const flatSubs = useMemo(() => {
     const arr = [];
@@ -942,6 +1005,7 @@ export default function App() {
                       setCell(rf.row.id, cf.sub.id, content, ck === "text" ? `cell-${key}` : null)
                     }
                     onCommit={breakCoalesce}
+                    onImageClick={() => openLightbox(key)}
                   />
                 </div>
               );
@@ -964,6 +1028,43 @@ export default function App() {
         </span>
         <span className="footer-meta">Open source · MIT</span>
       </footer>
+
+      {lightbox &&
+        (() => {
+          const { cells, nCols, nRows } = getGallery();
+          return (
+            <div className="lightbox" onClick={lbClose}>
+              <button className="lb-close" onClick={lbClose} title="Close (Esc)">
+                ×
+              </button>
+              <div className="lb-scroll" onClick={(e) => e.stopPropagation()}>
+                <div
+                  className="lb-grid"
+                  style={{
+                    gridTemplateColumns: `repeat(${nCols}, var(--lb-tile-w))`,
+                    gridTemplateRows: `repeat(${nRows}, var(--lb-tile-h))`,
+                  }}
+                >
+                  {cells.map((cell) => {
+                    const sel = cell.r === lightbox.r && cell.c === lightbox.c;
+                    return (
+                      <div
+                        key={cell.key}
+                        ref={sel ? selRef : null}
+                        className={`lb-tile ${sel ? "sel" : ""}`}
+                        style={{ gridColumn: cell.c + 1, gridRow: cell.r + 1 }}
+                        onClick={() => setLightbox({ r: cell.r, c: cell.c })}
+                      >
+                        <img className="lb-img" src={cell.url} alt="" />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="lb-hint">← → across · ↑ ↓ rows · Esc to close</div>
+            </div>
+          );
+        })()}
     </div>
   );
 }

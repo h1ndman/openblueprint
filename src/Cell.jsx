@@ -9,7 +9,7 @@ function fileToDataUrl(file) {
   });
 }
 
-export default function Cell({ accent, content, onChange, onCommit }) {
+export default function Cell({ accent, content, onChange, onCommit, onImageClick }) {
   const c = content || {};
   const fileInputRef = useRef(null);
   const videoInputRef = useRef(null);
@@ -102,7 +102,13 @@ export default function Cell({ accent, content, onChange, onCommit }) {
 
       {c.imageUrl && (
         <div className="cell-image-wrap">
-          <img className="cell-image" src={c.imageUrl} alt="" />
+          <img
+            className="cell-image"
+            src={c.imageUrl}
+            alt=""
+            title="Click to view"
+            onClick={() => onImageClick?.()}
+          />
           <button
             className="cell-image-remove"
             title="Remove image"
