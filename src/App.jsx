@@ -17,6 +17,23 @@ const COL_MIN = 180;
 
 const ACTOR_COLORS = ["#2563eb", "#0ea5e9", "#0284c7", "#1d4ed8", "#38bdf8", "#075985"];
 
+const DOC_KEY = "openblueprint-doc";
+
+function isValidDoc(data) {
+  return data && Array.isArray(data.phases) && Array.isArray(data.actorGroups);
+}
+
+function loadDoc() {
+  try {
+    const raw = localStorage.getItem(DOC_KEY);
+    if (raw) {
+      const data = JSON.parse(raw);
+      if (isValidDoc(data)) return data;
+    }
+  } catch {}
+  return null;
+}
+
 /* Drag handle. Only this element is draggable so inputs stay usable. */
 function Grip({ onStart, onEnd, title, className }) {
   return (
@@ -44,9 +61,29 @@ function DropBar({ active, after, axis }) {
 }
 
 /* Color palette picker popover. */
-function ThemePanel({ theme, onChange, onClose, customPresets, onAddPreset, onDeletePreset }) {
+function ThemePanel({
+  theme,
+  onChange,
+  onApplyPreset,
+  onReset,
+  selectedPresetId,
+  customPresets,
+  onAddPreset,
+  onDeletePreset,
+  onClose,
+}) {
   const set = (patch) => onChange({ ...theme, ...patch });
   const light = theme.gradient ? theme.secondary : "#ffffff";
+  const primaryRef = useRef(null);
+
+  const handleAdd = () => {
+    onAddPreset();
+    // Pop the native color wheel right away so the new palette can be dialed in.
+    primaryRef.current?.click();
+  };
+
+  const editingCustom = !!selectedPresetId;
+
   return (
     <>
       <div className="panel-backdrop" onClick={onClose} />
@@ -58,10 +95,17 @@ function ThemePanel({ theme, onChange, onClose, customPresets, onAddPreset, onDe
           </button>
         </div>
 
+        <div className="panel-hint">
+          {editingCustom
+            ? "Editing your saved palette — tweak the colors below."
+            : "Pick colors below, or tap a swatch. Use + to create your own."}
+        </div>
+
         <label className="theme-row">
           <span>Primary</span>
           <span className="swatch-input">
             <input
+              ref={primaryRef}
               type="color"
               value={theme.primary}
               onChange={(e) => set({ primary: e.target.value })}
@@ -103,11 +147,10 @@ function ThemePanel({ theme, onChange, onClose, customPresets, onAddPreset, onDe
           <span>Gradient between the two colors</span>
         </label>
 
+        <div className="gradient-caption">Current palette</div>
         <div
           className="gradient-preview"
-          style={{
-            background: `linear-gradient(90deg, ${theme.primary}, ${light})`,
-          }}
+          style={{ background: `linear-gradient(90deg, ${theme.primary}, ${light})` }}
         />
 
         <div className="presets-label">Presets</div>
@@ -118,7 +161,7 @@ function ThemePanel({ theme, onChange, onClose, customPresets, onAddPreset, onDe
               className="preset"
               title={p.name}
               style={{ background: `linear-gradient(120deg, ${p.primary}, ${p.secondary})` }}
-              onClick={() => onChange({ primary: p.primary, secondary: p.secondary, gradient: true })}
+              onClick={() => onApplyPreset(p, false)}
             />
           ))}
         </div>
@@ -126,18 +169,15 @@ function ThemePanel({ theme, onChange, onClose, customPresets, onAddPreset, onDe
         <div className="presets-label">Your palettes</div>
         <div className="presets">
           {customPresets.map((p) => (
-            <div key={p.id} className="preset-wrap">
+            <div
+              key={p.id}
+              className={`preset-wrap ${p.id === selectedPresetId ? "selected" : ""}`}
+            >
               <button
                 className="preset"
                 title={p.name}
                 style={{ background: `linear-gradient(120deg, ${p.primary}, ${p.secondary})` }}
-                onClick={() =>
-                  onChange({
-                    primary: p.primary,
-                    secondary: p.secondary,
-                    gradient: p.gradient !== false,
-                  })
-                }
+                onClick={() => onApplyPreset(p, true)}
               />
               <button
                 className="preset-del"
@@ -150,14 +190,14 @@ function ThemePanel({ theme, onChange, onClose, customPresets, onAddPreset, onDe
           ))}
           <button
             className="preset preset-add"
-            title="Save current colors as a new swatch"
-            onClick={onAddPreset}
+            title="Create a new palette and pick its colors"
+            onClick={handleAdd}
           >
             +
           </button>
         </div>
 
-        <button className="btn btn-ghost reset" onClick={() => onChange({ ...DEFAULT_THEME })}>
+        <button className="btn btn-ghost reset" onClick={onReset}>
           Reset to default
         </button>
       </div>
@@ -184,7 +224,7 @@ function Editable({ value, onChange, onCommit, placeholder, className, coalesceK
 
 export default function App() {
   const { state, set, undo, redo, breakCoalesce, canUndo, canRedo } = useHistory(
-    () => createInitialState()
+    () => loadDoc() || createInitialState()
   );
 
   // Theme lives outside undo history and persists across reloads.
@@ -216,21 +256,113 @@ export default function App() {
     } catch {}
   }, [customPresets]);
 
+  // Which saved palette (if any) the color wheels are currently editing.
+  const [selectedPresetId, setSelectedPresetId] = useState(null);
+
   const addPreset = () => {
+    const id = uid("preset");
     setCustomPresets((p) => [
       ...p,
       {
-        id: uid("preset"),
+        id,
         name: `Custom ${p.length + 1}`,
         primary: theme.primary,
         secondary: theme.gradient ? theme.secondary : theme.primary,
         gradient: theme.gradient,
       },
     ]);
+    setSelectedPresetId(id);
   };
-  const deletePreset = (id) => setCustomPresets((p) => p.filter((x) => x.id !== id));
+
+  const deletePreset = (id) => {
+    setCustomPresets((p) => p.filter((x) => x.id !== id));
+    setSelectedPresetId((cur) => (cur === id ? null : cur));
+  };
+
+  // Editing the wheels updates the theme, and writes through to the selected swatch.
+  const handleColorChange = (next) => {
+    setTheme(next);
+    if (selectedPresetId) {
+      setCustomPresets((list) =>
+        list.map((p) =>
+          p.id === selectedPresetId
+            ? {
+                ...p,
+                primary: next.primary,
+                secondary: next.gradient ? next.secondary : next.primary,
+                gradient: next.gradient,
+              }
+            : p
+        )
+      );
+    }
+  };
+
+  const applyPreset = (preset, custom) => {
+    setSelectedPresetId(custom ? preset.id : null);
+    setTheme({
+      primary: preset.primary,
+      secondary: preset.secondary,
+      gradient: preset.gradient !== false,
+    });
+  };
+
+  const resetTheme = () => {
+    setSelectedPresetId(null);
+    setTheme({ ...DEFAULT_THEME });
+  };
 
   const themeVars = useMemo(() => buildThemeVars(theme), [theme]);
+
+  // ---- saving: autosave to localStorage + file export/import ----
+  const [saveStatus, setSaveStatus] = useState("saved"); // saving | saved | full
+  useEffect(() => {
+    setSaveStatus("saving");
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem(DOC_KEY, JSON.stringify(state));
+        setSaveStatus("saved");
+      } catch {
+        // Most likely the browser storage quota (large embedded media).
+        setSaveStatus("full");
+      }
+    }, 500);
+    return () => clearTimeout(t);
+  }, [state]);
+
+  const fileRef = useRef(null);
+
+  const exportDoc = () => {
+    const name =
+      (state.title || "openblueprint").trim().replace(/[^\w-]+/g, "-").toLowerCase() ||
+      "openblueprint";
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${name}.obp.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const importDoc = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(String(reader.result));
+        if (!isValidDoc(data)) throw new Error("invalid");
+        set(() => data);
+      } catch {
+        window.alert("Sorry — that doesn't look like an OpenBlueprint (.obp.json) file.");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
 
   // ---- derived flat layout ----
   const flatSubs = useMemo(() => {
@@ -265,21 +397,9 @@ export default function App() {
     }, coalesceKey);
 
   // Phases
-  const addPhase = () =>
-    mutate((d) => {
-      d.phases.push({
-        id: uid("phase"),
-        name: "New Phase",
-        subPhases: [
-          { id: uid("sub"), name: "Step 1" },
-          { id: uid("sub"), name: "Step 2" },
-          { id: uid("sub"), name: "Step 3" },
-        ],
-      });
-    });
-
   const removePhase = (phaseId) =>
     mutate((d) => {
+      if (d.phases.length <= 1) return;
       d.phases = d.phases.filter((p) => p.id !== phaseId);
     });
 
@@ -289,16 +409,34 @@ export default function App() {
       if (p) p.name = name;
     }, `phase-${phaseId}`);
 
-  const addSubPhase = (phaseId) =>
+  const addPhaseAfter = (phaseId) =>
+    mutate((d) => {
+      const idx = d.phases.findIndex((p) => p.id === phaseId);
+      const np = {
+        id: uid("phase"),
+        name: "New Phase",
+        subPhases: [
+          { id: uid("sub"), name: "Step 1" },
+          { id: uid("sub"), name: "Step 2" },
+          { id: uid("sub"), name: "Step 3" },
+        ],
+      };
+      d.phases.splice(idx + 1, 0, np);
+    });
+
+  const addStepAfter = (phaseId, subId) =>
     mutate((d) => {
       const p = d.phases.find((p) => p.id === phaseId);
-      if (p) p.subPhases.push({ id: uid("sub"), name: `Step ${p.subPhases.length + 1}` });
+      if (!p) return;
+      const idx = p.subPhases.findIndex((s) => s.id === subId);
+      p.subPhases.splice(idx + 1, 0, { id: uid("sub"), name: "New Step" });
     });
 
   const removeSubPhase = (phaseId, subId) =>
     mutate((d) => {
       const p = d.phases.find((p) => p.id === phaseId);
-      if (p) p.subPhases = p.subPhases.filter((s) => s.id !== subId);
+      if (p && p.subPhases.length > 1)
+        p.subPhases = p.subPhases.filter((s) => s.id !== subId);
     });
 
   const renameSubPhase = (phaseId, subId, name) =>
@@ -309,19 +447,9 @@ export default function App() {
     }, `sub-${subId}`);
 
   // Actor groups
-  const addActorGroup = () =>
-    mutate((d) => {
-      const color = ACTOR_COLORS[d.actorGroups.length % ACTOR_COLORS.length];
-      d.actorGroups.push({
-        id: uid("actor"),
-        name: "New Actor",
-        color,
-        rows: [{ id: uid("row"), title: "New Row", height: 120 }],
-      });
-    });
-
   const removeActorGroup = (groupId) =>
     mutate((d) => {
+      if (d.actorGroups.length <= 1) return;
       d.actorGroups = d.actorGroups.filter((g) => g.id !== groupId);
     });
 
@@ -332,16 +460,30 @@ export default function App() {
     }, `actor-${groupId}`);
 
   // Rows
-  const addRow = (groupId) =>
+  const addActorGroupAfter = (groupId) =>
+    mutate((d) => {
+      const idx = d.actorGroups.findIndex((g) => g.id === groupId);
+      const color = ACTOR_COLORS[d.actorGroups.length % ACTOR_COLORS.length];
+      d.actorGroups.splice(idx + 1, 0, {
+        id: uid("actor"),
+        name: "New Actor",
+        color,
+        rows: [{ id: uid("row"), title: "New Row", height: 120 }],
+      });
+    });
+
+  const addRowAfter = (groupId, rowId) =>
     mutate((d) => {
       const g = d.actorGroups.find((g) => g.id === groupId);
-      if (g) g.rows.push({ id: uid("row"), title: "New Row", height: 120 });
+      if (!g) return;
+      const idx = g.rows.findIndex((r) => r.id === rowId);
+      g.rows.splice(idx + 1, 0, { id: uid("row"), title: "New Row", height: 120 });
     });
 
   const removeRow = (groupId, rowId) =>
     mutate((d) => {
       const g = d.actorGroups.find((g) => g.id === groupId);
-      if (g) g.rows = g.rows.filter((r) => r.id !== rowId);
+      if (g && g.rows.length > 1) g.rows = g.rows.filter((r) => r.id !== rowId);
     });
 
   const renameRow = (groupId, rowId, title) =>
@@ -510,12 +652,11 @@ export default function App() {
         style={{ color: readableText(mix(theme.primary, theme.gradient ? theme.secondary : theme.primary, 0.25)) }}
       >
         <div className="brand">
-          <span className="brand-mark" />
           <Editable
             value={state.title}
             onChange={setTitle}
             onCommit={breakCoalesce}
-            placeholder="Untitled blueprint"
+            placeholder="OpenBlueprint"
             className="title-input"
             coalesceKey="title"
           />
@@ -528,12 +669,26 @@ export default function App() {
             ↷ Redo
           </button>
           <span className="divider" />
-          <button className="btn btn-primary" onClick={addPhase}>
-            + Phase
+          <button className="btn" onClick={exportDoc} title="Download this blueprint as a file you can re-open or share">
+            ⬇ Save
           </button>
-          <button className="btn btn-primary" onClick={addActorGroup}>
-            + Actor group
+          <button className="btn" onClick={() => fileRef.current?.click()} title="Open a saved .obp.json blueprint">
+            ⬆ Open
           </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={importDoc}
+          />
+          <span className={`save-status ${saveStatus}`} title="Your work autosaves in this browser. Use Save to keep a file.">
+            {saveStatus === "saving"
+              ? "Saving…"
+              : saveStatus === "full"
+              ? "⚠ Autosave full — use Save"
+              : "✓ Autosaved"}
+          </span>
           <span className="divider" />
           <div className="theme-anchor">
             <button
@@ -548,11 +703,14 @@ export default function App() {
             {showTheme && (
               <ThemePanel
                 theme={theme}
-                onChange={setTheme}
-                onClose={() => setShowTheme(false)}
+                onChange={handleColorChange}
+                onApplyPreset={applyPreset}
+                onReset={resetTheme}
+                selectedPresetId={selectedPresetId}
                 customPresets={customPresets}
                 onAddPreset={addPreset}
                 onDeletePreset={deletePreset}
+                onClose={() => setShowTheme(false)}
               />
             )}
           </div>
@@ -616,7 +774,7 @@ export default function App() {
                     coalesceKey={`phase-${phase.id}`}
                   />
                   <div className="phase-actions">
-                    <button className="mini" title="Add sub-phase" onClick={() => addSubPhase(phase.id)}>
+                    <button className="mini" title="Add phase" onClick={() => addPhaseAfter(phase.id)}>
                       +
                     </button>
                     <button
@@ -652,13 +810,22 @@ export default function App() {
                 className="sub-name"
                 coalesceKey={`sub-${f.sub.id}`}
               />
-              <button
-                className="mini danger sub-del"
-                title="Delete sub-phase"
-                onClick={() => removeSubPhase(f.phase.id, f.sub.id)}
-              >
-                ×
-              </button>
+              <div className="sub-actions">
+                <button
+                  className="mini"
+                  title="Add step"
+                  onClick={() => addStepAfter(f.phase.id, f.sub.id)}
+                >
+                  +
+                </button>
+                <button
+                  className="mini danger"
+                  title="Delete step"
+                  onClick={() => removeSubPhase(f.phase.id, f.sub.id)}
+                >
+                  ×
+                </button>
+              </div>
             </div>
           ))}
 
@@ -694,7 +861,7 @@ export default function App() {
                     />
                   </div>
                   <div className="actor-actions">
-                    <button className="mini" title="Add row" onClick={() => addRow(group.id)}>
+                    <button className="mini" title="Add actor group" onClick={() => addActorGroupAfter(group.id)}>
                       +
                     </button>
                     <button
@@ -734,13 +901,22 @@ export default function App() {
                 coalesceKey={`row-${f.row.id}`}
                 multiline
               />
-              <button
-                className="mini danger row-del"
-                title="Delete row"
-                onClick={() => removeRow(f.group.id, f.row.id)}
-              >
-                ×
-              </button>
+              <div className="row-actions">
+                <button
+                  className="mini"
+                  title="Add row"
+                  onClick={() => addRowAfter(f.group.id, f.row.id)}
+                >
+                  +
+                </button>
+                <button
+                  className="mini danger"
+                  title="Delete row"
+                  onClick={() => removeRow(f.group.id, f.row.id)}
+                >
+                  ×
+                </button>
+              </div>
               <div
                 className="row-resize"
                 title="Drag to resize row height"
@@ -773,6 +949,21 @@ export default function App() {
           )}
         </div>
       </div>
+
+      <footer className="footer">
+        <span className="footer-brand">
+          OpenBlueprint by{" "}
+          <a
+            className="footer-link"
+            href="https://x.com/h1ndman"
+            target="_blank"
+            rel="noreferrer"
+          >
+            h1ndman
+          </a>
+        </span>
+        <span className="footer-meta">Open source · MIT</span>
+      </footer>
     </div>
   );
 }

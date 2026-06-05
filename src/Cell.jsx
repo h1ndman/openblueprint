@@ -26,12 +26,12 @@ export default function Cell({ accent, content, onChange, onCommit }) {
     e.target.value = "";
   };
 
-  const handleUploadVideo = (e) => {
+  const handleUploadVideo = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // Object URLs keep large videos out of the (cloned) state/history.
-    const url = URL.createObjectURL(file);
-    update({ videoUrl: url, videoName: file.name });
+    // Embed as a data URL so the video persists and travels inside saved files.
+    const dataUrl = await fileToDataUrl(file);
+    update({ videoUrl: dataUrl, videoName: file.name });
     e.target.value = "";
   };
 

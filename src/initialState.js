@@ -21,7 +21,7 @@ function makeRow(title) {
 
 export function createInitialState() {
   return {
-    title: "Service Blueprint",
+    title: "OpenBlueprint",
     cornerLabel: "Actors / Lanes",
     phases: PHASE_NAMES.map(makePhase),
     actorGroups: [

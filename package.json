@@ -1,7 +1,10 @@
 {
-  "name": "service-blueprint",
+  "name": "openblueprint",
   "private": true,
   "version": "0.1.0",
+  "description": "OpenBlueprint — an interactive, open-source service blueprint builder.",
+  "author": "h1ndman",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
