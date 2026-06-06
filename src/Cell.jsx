@@ -55,30 +55,21 @@ export default function Cell({ accent, content, onChange, onCommit, onImageClick
 
   const clearCell = () => onChange({}, null);
 
-  const mediaButtons = (
-    <>
-      <button className="cell-tool" title="Add / edit text" onClick={addText}>
-        T
+  const hasMedia = !!(c.imageUrl || c.videoUrl);
+
+  const TOOLS = {
+    text: ["T", "Add / edit text", addText],
+    image: ["▣", "Upload image", () => fileInputRef.current?.click()],
+    video: ["▶", "Upload video", () => videoInputRef.current?.click()],
+    link: ["🔗", "Add / edit link", handleAddLink],
+  };
+
+  const tools = (types) =>
+    types.map((t) => (
+      <button key={t} className="cell-tool" title={TOOLS[t][1]} onClick={TOOLS[t][2]}>
+        {TOOLS[t][0]}
       </button>
-      <button
-        className="cell-tool"
-        title="Upload image"
-        onClick={() => fileInputRef.current?.click()}
-      >
-        ▣
-      </button>
-      <button
-        className="cell-tool"
-        title="Upload video"
-        onClick={() => videoInputRef.current?.click()}
-      >
-        ▶
-      </button>
-      <button className="cell-tool" title="Add link" onClick={handleAddLink}>
-        🔗
-      </button>
-    </>
-  );
+    ));
 
   return (
     <div className="cell" style={{ "--accent": accent }}>
@@ -99,8 +90,14 @@ export default function Cell({ accent, content, onChange, onCommit, onImageClick
 
       {hasContent && (
         <>
-          <div className="cell-toolbar">{mediaButtons}</div>
-          <button className="cell-clear" title="Clear cell" onClick={clearCell}>
+          {!hasMedia && (
+            <div className="cell-toolbar">{tools(["text", "link"])}</div>
+          )}
+          <button
+            className="cell-clear"
+            title={hasMedia ? "Remove (clear to swap)" : "Clear cell"}
+            onClick={clearCell}
+          >
             ×
           </button>
         </>
@@ -109,7 +106,9 @@ export default function Cell({ accent, content, onChange, onCommit, onImageClick
       {!hasContent && (
         <div className="cell-empty">
           <span className="cell-empty-plus">+</span>
-          <div className="cell-empty-actions">{mediaButtons}</div>
+          <div className="cell-empty-actions">
+            {tools(["text", "image", "video", "link"])}
+          </div>
         </div>
       )}
 
