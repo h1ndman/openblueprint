@@ -404,34 +404,39 @@ export default function App() {
   const [lightbox, setLightbox] = useState(null); // { r, c } selected coords
   const selRef = useRef(null);
 
-  // Collect every cell that has *any* content (text / image / video / link),
-  // with the context (actor row, phase, step) needed for the presentation view.
+  // Collect every cell that has content on *either* state (so you can flip
+  // future/current in present mode without the tile vanishing), carrying the
+  // real cell dimensions + actor persona needed for the cinematic view.
+  const faceHasContent = (f) =>
+    (f.text != null && f.text !== "") || f.imageUrl || f.videoUrl || f.linkUrl;
+
   const getGallery = () => {
     const cells = [];
     flatRows.forEach((rf, r) => {
       flatSubs.forEach((cf, c) => {
         const k = `${rf.row.id}|${cf.sub.id}`;
-        const face = splitFaces(state.cells[k])[sideOf(k)] || {};
-        const has =
-          (face.text != null && face.text !== "") ||
-          face.imageUrl ||
-          face.videoUrl ||
-          face.linkUrl;
-        if (has)
-          cells.push({
-            r,
-            c,
-            key: k,
-            content: face,
-            rowName: rf.row.title,
-            phaseName: cf.phase.name,
-            subName: cf.sub.name,
-            side: sideOf(k),
-            accent: gColor(rf.gi),
-            groupId: rf.group.id,
-            groupAvatar: rf.group.avatarUrl,
-            groupIcon: rf.group.icon,
-          });
+        const faces = splitFaces(state.cells[k]);
+        if (!faceHasContent(faces.future) && !faceHasContent(faces.current)) return;
+        const side = sideOf(k);
+        cells.push({
+          r,
+          c,
+          key: k,
+          content: faces[side] || {},
+          side,
+          hasOther: faceHasContent(side === "future" ? faces.current : faces.future),
+          width: cf.sub.width ?? DEFAULT_COL_WIDTH,
+          height: rf.row.height,
+          rowName: rf.row.title,
+          phaseName: cf.phase.name,
+          subName: cf.sub.name,
+          accent: gColor(rf.gi),
+          groupId: rf.group.id,
+          groupName: rf.group.name,
+          groupAvatar: rf.group.avatarUrl,
+          groupIcon: rf.group.icon,
+          groupDesc: rf.group.description,
+        });
       });
     });
     return { cells, nCols: flatSubs.length, nRows: flatRows.length };
@@ -1227,7 +1232,22 @@ export default function App() {
 
       {lightbox &&
         (() => {
-          const { cells, nCols, nRows } = getGallery();
+          const { cells } = getGallery();
+          const SCALE = 2.6;
+          const ACTOR_COL = 280;
+          const colTemplate = flatSubs
+            .map((f) => `${(f.sub.width ?? DEFAULT_COL_WIDTH) * SCALE}px`)
+            .join(" ");
+          const rowTemplate = flatRows.map((f) => `${f.row.height * SCALE}px`).join(" ");
+          const focus = cells.find((x) => x.r === lightbox.r && x.c === lightbox.c) || cells[0];
+          // Actor lane ranges so each persona card spans its group's rows.
+          const groupRanges = [];
+          let gStart = 0;
+          state.actorGroups.forEach((g, gi) => {
+            const sp = g.rows.length;
+            groupRanges.push({ group: g, gi, start: gStart, span: sp });
+            gStart += sp;
+          });
           return (
             <div className="lightbox" onClick={lbClose}>
               <button className="lb-close" onClick={lbClose} title="Close (Esc)">
@@ -1237,19 +1257,56 @@ export default function App() {
                 <div
                   className="lb-grid"
                   style={{
-                    gridTemplateColumns: `repeat(${nCols}, var(--lb-tile-w))`,
-                    gridTemplateRows: `repeat(${nRows}, var(--lb-tile-h))`,
+                    gridTemplateColumns: `${ACTOR_COL}px ${colTemplate}`,
+                    gridTemplateRows: rowTemplate,
                   }}
                 >
+                  {groupRanges.map((gr) => {
+                    const g = gr.group;
+                    const on = focus && focus.groupId === g.id;
+                    return (
+                      <div
+                        key={`actor-${g.id}`}
+                        className={`lb-actor-cell ${on ? "sel" : ""}`}
+                        style={{
+                          gridColumn: 1,
+                          gridRow: `${gr.start + 1} / ${gr.start + 1 + Math.max(gr.span, 1)}`,
+                        }}
+                      >
+                        <div
+                          className="lb-actor"
+                          style={{ "--accent": gColor(gr.gi) }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setProfileId(g.id);
+                          }}
+                          title="Open actor profile"
+                        >
+                          <div className="lb-actor-avatar">
+                            {g.avatarUrl ? (
+                              <img src={g.avatarUrl} alt="" />
+                            ) : (
+                              <ActorIcon kind={g.icon || "user"} className="lb-actor-icon" />
+                            )}
+                          </div>
+                          <div className="lb-actor-meta">
+                            <div className="lb-actor-name">{g.name || "Actor"}</div>
+                            {g.description && <p className="lb-actor-desc">{g.description}</p>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                   {cells.map((cell) => {
                     const sel = cell.r === lightbox.r && cell.c === lightbox.c;
                     const ct = cell.content;
+                    const empty = !faceHasContent(ct);
                     return (
                       <div
                         key={cell.key}
                         ref={sel ? selRef : null}
                         className={`lb-tile ${sel ? "sel" : ""}`}
-                        style={{ gridColumn: cell.c + 1, gridRow: cell.r + 1 }}
+                        style={{ gridColumn: cell.c + 2, gridRow: cell.r + 1 }}
                         onClick={() => setLightbox({ r: cell.r, c: cell.c })}
                       >
                         <div className="lb-card" style={{ "--accent": cell.accent }}>
@@ -1277,33 +1334,24 @@ export default function App() {
                                 🔗 {ct.linkLabel || ct.linkUrl}
                               </a>
                             )}
+                            {empty && <span className="lb-empty">no {cell.side}-state content</span>}
                           </div>
                           <div className="lb-caption">
-                            {cell.rowName ? (
-                              <button
-                                className="lb-cap-actor"
-                                title="Read this actor's profile"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setProfileId(cell.groupId);
-                                }}
-                              >
-                                <span className="lb-cap-avatar">
-                                  {cell.groupAvatar ? (
-                                    <img src={cell.groupAvatar} alt="" />
-                                  ) : (
-                                    <ActorIcon kind={cell.groupIcon || "user"} className="lb-cap-icon" />
-                                  )}
-                                </span>
-                                {cell.rowName}
-                              </button>
-                            ) : (
-                              <span />
-                            )}
                             <span className="lb-cap-step">
                               {cell.phaseName} · {cell.subName}
-                              {cell.side === "current" && <em className="lb-cap-state">Current</em>}
                             </span>
+                            {(cell.hasOther || !empty) && (
+                              <button
+                                className={`lb-flip ${cell.side === "current" ? "current" : ""}`}
+                                title="Toggle future / current state"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  flipCell(cell.key);
+                                }}
+                              >
+                                {cell.side === "current" ? "Current" : "Future"} ⇄
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1311,7 +1359,8 @@ export default function App() {
                   })}
                 </div>
               </div>
-              <div className="lb-hint">← → across · ↑ ↓ rows · Esc to close</div>
+
+              <div className="lb-hint">← → across · ↑ ↓ rows · click ⇄ to flip · Esc</div>
             </div>
           );
         })()}
