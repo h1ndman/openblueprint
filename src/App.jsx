@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useHistory } from "./useHistory.js";
-import { createInitialState, uid } from "./initialState.js";
+import { createInitialState, uid, DEFAULT_COL_WIDTH } from "./initialState.js";
 import Cell from "./Cell.jsx";
 import {
   buildThemeVars,
@@ -13,7 +13,6 @@ import {
 
 const ACTOR_W = 46;
 const ROW_TITLE_W = 190;
-const COL_MIN = 180;
 
 const ACTOR_COLORS = ["#2563eb", "#0ea5e9", "#0284c7", "#1d4ed8", "#38bdf8", "#075985"];
 
@@ -448,7 +447,9 @@ export default function App() {
   const gColor = (gi) => actorColor(gi, groupCount, theme);
 
   const totalCols = flatSubs.length;
-  const gridTemplateColumns = `${ACTOR_W}px ${ROW_TITLE_W}px repeat(${totalCols}, minmax(${COL_MIN}px, 1fr))`;
+  const gridTemplateColumns = `${ACTOR_W}px ${ROW_TITLE_W}px ${flatSubs
+    .map((f) => `${f.sub.width ?? DEFAULT_COL_WIDTH}px`)
+    .join(" ")}`;
   const gridTemplateRows = `auto auto ${flatRows.map((f) => `${f.row.height}px`).join(" ")}`;
 
   // ---- mutation helpers ----
@@ -479,9 +480,9 @@ export default function App() {
         id: uid("phase"),
         name: "New Phase",
         subPhases: [
-          { id: uid("sub"), name: "Step 1" },
-          { id: uid("sub"), name: "Step 2" },
-          { id: uid("sub"), name: "Step 3" },
+          { id: uid("sub"), name: "Step 1", width: DEFAULT_COL_WIDTH },
+          { id: uid("sub"), name: "Step 2", width: DEFAULT_COL_WIDTH },
+          { id: uid("sub"), name: "Step 3", width: DEFAULT_COL_WIDTH },
         ],
       };
       d.phases.splice(idx + 1, 0, np);
@@ -492,7 +493,11 @@ export default function App() {
       const p = d.phases.find((p) => p.id === phaseId);
       if (!p) return;
       const idx = p.subPhases.findIndex((s) => s.id === subId);
-      p.subPhases.splice(idx + 1, 0, { id: uid("sub"), name: "New Step" });
+      p.subPhases.splice(idx + 1, 0, {
+        id: uid("sub"),
+        name: "New Step",
+        width: DEFAULT_COL_WIDTH,
+      });
     });
 
   const removeSubPhase = (phaseId, subId) =>
@@ -566,6 +571,17 @@ export default function App() {
         }
       }
     }, `rowh-${rowId}`);
+
+  const setColWidth = (subId, width) =>
+    mutate((d) => {
+      for (const p of d.phases) {
+        const s = p.subPhases.find((s) => s.id === subId);
+        if (s) {
+          s.width = Math.max(120, width);
+          break;
+        }
+      }
+    }, `colw-${subId}`);
 
   // Cells
   const cellKey = (rowId, subId) => `${rowId}|${subId}`;
@@ -696,6 +712,25 @@ export default function App() {
       const d = dragRef.current;
       if (!d) return;
       setRowHeight(d.rowId, d.startHeight + (ev.clientY - d.startY));
+    };
+    const onUp = () => {
+      dragRef.current = null;
+      breakCoalesce();
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  const startResizeCol = (e, subId, startWidth) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragRef.current = { subId, startX: e.clientX, startWidth };
+    const onMove = (ev) => {
+      const d = dragRef.current;
+      if (!d) return;
+      setColWidth(d.subId, d.startWidth + (ev.clientX - d.startX));
     };
     const onUp = () => {
       dragRef.current = null;
@@ -889,6 +924,13 @@ export default function App() {
                   ×
                 </button>
               </div>
+              <div
+                className="col-resize"
+                title="Drag to resize column width"
+                onMouseDown={(e) =>
+                  startResizeCol(e, f.sub.id, f.sub.width ?? DEFAULT_COL_WIDTH)
+                }
+              />
             </div>
           ))}
 

@@ -3,15 +3,17 @@ export const uid = (prefix = "id") => `${prefix}_${Date.now().toString(36)}_${(c
 
 const PHASE_NAMES = ["Discover", "Onboard", "Use", "Support", "Renew"];
 
+export const DEFAULT_COL_WIDTH = 220;
+
+function makeSub(name) {
+  return { id: uid("sub"), name, width: DEFAULT_COL_WIDTH };
+}
+
 function makePhase(name) {
   return {
     id: uid("phase"),
     name,
-    subPhases: [
-      { id: uid("sub"), name: "Step 1" },
-      { id: uid("sub"), name: "Step 2" },
-      { id: uid("sub"), name: "Step 3" },
-    ],
+    subPhases: [makeSub("Step 1"), makeSub("Step 2"), makeSub("Step 3")],
   };
 }
 

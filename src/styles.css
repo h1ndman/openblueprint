@@ -619,6 +619,34 @@ body {
   opacity: 1;
 }
 
+.col-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -5px;
+  width: 10px;
+  cursor: ew-resize;
+  z-index: 2;
+}
+
+.col-resize::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 18px;
+  border-radius: 3px;
+  background: var(--blue-300);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.sub-head:hover .col-resize::after {
+  opacity: 1;
+}
+
 /* actor vertical label */
 .actor-label {
   position: relative;
