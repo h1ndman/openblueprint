@@ -859,22 +859,28 @@ body {
 
 .cell-image-wrap {
   position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
 }
 
 .cell-image {
   width: 100%;
+  height: 100%;
+  max-height: 100%;
   border-radius: 7px;
   display: block;
-  max-height: 240px;
-  object-fit: cover;
+  object-fit: contain;
   cursor: zoom-in;
 }
 
 .cell-video {
   width: 100%;
+  height: 100%;
+  max-height: 100%;
   border-radius: 7px;
   display: block;
-  max-height: 240px;
+  object-fit: contain;
   background: #000;
 }
 
