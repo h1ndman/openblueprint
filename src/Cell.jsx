@@ -89,39 +89,36 @@ export default function Cell({ accent, content, onChange, onCommit, onImageClick
       />
 
       {hasContent && (
-        <>
-          {!hasMedia && (
-            <div className="cell-toolbar">
-              {tools(["text", "link"])}
-              {c.text != null && (
-                <>
-                  <span className="cell-tool-sep" />
-                  {[
-                    ["s", "Small text"],
-                    ["m", "Medium text"],
-                    ["l", "Large text"],
-                  ].map(([s, label]) => (
-                    <button
-                      key={s}
-                      className={`cell-tool ${(c.textSize || "m") === s ? "active" : ""}`}
-                      title={label}
-                      onClick={() => update({ textSize: s })}
-                    >
-                      {s.toUpperCase()}
-                    </button>
-                  ))}
-                </>
-              )}
-            </div>
+        <div className="cell-popover">
+          {!hasMedia && tools(["text", "link"])}
+          {!hasMedia && c.text != null && (
+            <>
+              <span className="cell-tool-sep" />
+              {[
+                ["s", "Small text"],
+                ["m", "Medium text"],
+                ["l", "Large text"],
+              ].map(([s, label]) => (
+                <button
+                  key={s}
+                  className={`cell-tool ${(c.textSize || "m") === s ? "active" : ""}`}
+                  title={label}
+                  onClick={() => update({ textSize: s })}
+                >
+                  {s.toUpperCase()}
+                </button>
+              ))}
+            </>
           )}
+          {!hasMedia && <span className="cell-tool-sep" />}
           <button
-            className="cell-clear"
+            className="cell-tool danger"
             title={hasMedia ? "Remove (clear to swap)" : "Clear cell"}
             onClick={clearCell}
           >
             ×
           </button>
-        </>
+        </div>
       )}
 
       {!hasContent && (
