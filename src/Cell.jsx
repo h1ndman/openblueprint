@@ -46,58 +46,59 @@ export default function Cell({ accent, content, onChange, onCommit, onImageClick
     update({ linkUrl: url.trim(), linkLabel: label.trim() });
   };
 
+  const mediaButtons = (
+    <>
+      <button
+        className="cell-tool"
+        title="Add / edit text"
+        onClick={() => update({ text: c.text ?? "" })}
+      >
+        T
+      </button>
+      <button
+        className="cell-tool"
+        title="Upload image"
+        onClick={() => fileInputRef.current?.click()}
+      >
+        ▣
+      </button>
+      <button
+        className="cell-tool"
+        title="Upload video"
+        onClick={() => videoInputRef.current?.click()}
+      >
+        ▶
+      </button>
+      <button className="cell-tool" title="Add link" onClick={handleAddLink}>
+        🔗
+      </button>
+    </>
+  );
+
   return (
     <div className="cell" style={{ "--accent": accent }}>
-      <div className="cell-toolbar">
-        <button
-          className="cell-tool"
-          title="Add / edit text"
-          onClick={() => update({ text: c.text ?? "" })}
-        >
-          T
-        </button>
-        <button
-          className="cell-tool"
-          title="Upload image"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          ▣
-        </button>
-        <button
-          className="cell-tool"
-          title="Upload video"
-          onClick={() => videoInputRef.current?.click()}
-        >
-          ▶
-        </button>
-        <button className="cell-tool" title="Add link" onClick={handleAddLink}>
-          🔗
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          hidden
-          onChange={handleUpload}
-        />
-        <input
-          ref={videoInputRef}
-          type="file"
-          accept="video/*"
-          hidden
-          onChange={handleUploadVideo}
-        />
-      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={handleUpload}
+      />
+      <input
+        ref={videoInputRef}
+        type="file"
+        accept="video/*"
+        hidden
+        onChange={handleUploadVideo}
+      />
+
+      {hasContent && <div className="cell-toolbar">{mediaButtons}</div>}
 
       {!hasContent && (
-        <button
-          className="cell-empty"
-          onClick={() => update({ text: "" })}
-          title="Click to add text, or use the toolbar to upload an image / add a link"
-        >
+        <div className="cell-empty">
           <span className="cell-empty-plus">+</span>
-          <span className="cell-empty-hint">text · image · video · link</span>
-        </button>
+          <div className="cell-empty-actions">{mediaButtons}</div>
+        </div>
       )}
 
       {c.imageUrl && (
