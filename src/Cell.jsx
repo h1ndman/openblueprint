@@ -1,15 +1,7 @@
 import React, { useRef } from "react";
+import { fileToDataUrl } from "./fileToDataUrl.js";
 
-function fileToDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-export default function Cell({ accent, content, onChange, onCommit, onImageClick }) {
+export default function Cell({ accent, content, onChange, onCommit, onImageClick, stateLabel, onFlip }) {
   const c = content || {};
   const fileInputRef = useRef(null);
   const videoInputRef = useRef(null);
@@ -168,6 +160,19 @@ export default function Cell({ accent, content, onChange, onCommit, onImageClick
         >
           🔗 {c.linkLabel || c.linkUrl}
         </a>
+      )}
+
+      {onFlip && (
+        <button
+          className={`cell-flip-btn ${stateLabel === "Current" ? "current" : ""}`}
+          title="Flip between future / current state"
+          onClick={(e) => {
+            e.stopPropagation();
+            onFlip();
+          }}
+        >
+          {stateLabel} ⇄
+        </button>
       )}
     </div>
   );

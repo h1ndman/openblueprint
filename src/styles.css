@@ -131,6 +131,11 @@ body {
   color: #fde68a;
 }
 
+.btn-present {
+  background: color-mix(in srgb, currentColor 24%, transparent);
+  font-weight: 700;
+}
+
 .btn-primary {
   background: var(--white);
   color: var(--blue-700);
@@ -141,16 +146,16 @@ body {
   background: var(--blue-50);
 }
 
-/* ---------- Lightbox (2D gallery) ---------- */
+/* ---------- Present mode (read-only drill-in) ---------- */
 .lightbox {
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: rgba(8, 20, 40, 0.9);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  --lb-tile-w: 72vw;
-  --lb-tile-h: 76vh;
+  background: rgba(8, 20, 40, 0.94);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  --lb-tile-w: 50vw;
+  --lb-tile-h: 64vh;
 }
 
 .lb-scroll {
@@ -168,9 +173,10 @@ body {
   height: 0;
 }
 
+/* Tighter grid so neighbouring cells read as one connected system. */
 .lb-grid {
   display: grid;
-  gap: 5vh 4vw;
+  gap: 2.6vh 2.2vw;
 }
 
 .lb-tile {
@@ -183,24 +189,335 @@ body {
   cursor: pointer;
 }
 
-.lb-img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  border-radius: 14px;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
-  opacity: 0.38;
-  transform: scale(0.9);
-  transition: opacity 0.28s ease, transform 0.28s ease;
+/* Each cell becomes a subtly framed card — the demarcation between content. */
+.lb-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+  opacity: 0.32;
+  transform: scale(0.93);
+  transition: opacity 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
 }
 
-.lb-tile.sel .lb-img {
+.lb-tile.sel .lb-card {
   opacity: 1;
   transform: scale(1);
+  border-color: color-mix(in srgb, var(--accent, #fff) 55%, transparent);
 }
 
-.lb-tile:not(.sel):hover .lb-img {
-  opacity: 0.7;
+.lb-tile:not(.sel):hover .lb-card {
+  opacity: 0.62;
+}
+
+.lb-media {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 22px;
+}
+
+.lb-img,
+.lb-video {
+  max-width: 100%;
+  max-height: 100%;
+  min-height: 0;
+  object-fit: contain;
+  border-radius: 10px;
+}
+
+.lb-text {
+  margin: 0;
+  max-height: 100%;
+  overflow: auto;
+  color: #eef3fb;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  text-align: center;
+}
+
+.lb-text.size-s { font-size: 17px; }
+.lb-text.size-m { font-size: 22px; }
+.lb-text.size-l { font-size: 30px; }
+
+.lb-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #cfe0ff;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.lb-link:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* Context strip: which actor, which phase/step. */
+.lb-caption {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.lb-cap-actor {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lb-cap-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent, #fff);
+  flex: none;
+}
+
+.lb-cap-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lb-cap-state {
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #b45309;
+}
+
+/* present-mode actor avatar in the caption (clickable to read persona) */
+.lb-cap-actor {
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.lb-cap-avatar {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 6px;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent, rgba(255, 255, 255, 0.2));
+  color: #fff;
+}
+
+.lb-cap-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lb-cap-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.lb-cap-actor:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+/* ---------- Actor profile / persona modal ---------- */
+.profile-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: rgba(8, 20, 40, 0.62);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.profile-card {
+  position: relative;
+  width: min(460px, 100%);
+  background: var(--white);
+  border-radius: 18px;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.4);
+  padding: 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.profile-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: var(--blue-50);
+  color: var(--blue-600);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.profile-close:hover {
+  background: var(--blue-100);
+}
+
+.profile-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.profile-avatar {
+  width: 72px;
+  height: 72px;
+  flex: none;
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent, var(--blue-600));
+  color: #fff;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--accent, var(--blue-600)) 40%, transparent);
+}
+
+.profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-avatar-icon {
+  width: 40px;
+  height: 40px;
+}
+
+.profile-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--blue-800, #0d2a52);
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  padding: 4px 2px;
+}
+
+.profile-name:focus {
+  outline: none;
+  border-bottom-color: var(--accent, var(--blue-400));
+}
+
+.profile-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.profile-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--white);
+  color: var(--blue-700);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.profile-btn:hover {
+  background: var(--blue-50);
+}
+
+.profile-btn.active {
+  background: var(--accent, var(--blue-600));
+  border-color: var(--accent, var(--blue-600));
+  color: #fff;
+}
+
+.profile-btn.danger {
+  color: #ef4444;
+  border-color: color-mix(in srgb, #ef4444 40%, transparent);
+}
+
+.profile-btn.danger:hover {
+  background: #ef4444;
+  color: #fff;
+}
+
+.profile-btn-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.profile-desc {
+  width: 100%;
+  min-height: 130px;
+  resize: vertical;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--blue-800, #0d2a52);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--blue-50);
+}
+
+.profile-desc:focus {
+  outline: none;
+  border-color: var(--accent, var(--blue-400));
+  background: var(--white);
 }
 
 .lb-close {
@@ -643,7 +960,8 @@ body {
   transition: opacity 0.15s;
 }
 
-.sub-head:hover .col-resize::after {
+.sub-head:hover .col-resize::after,
+.row-title:hover .col-resize::after {
   opacity: 1;
 }
 
@@ -666,6 +984,80 @@ body {
   align-items: center;
   justify-content: center;
   width: 100%;
+}
+
+/* Cast card — avatar + persona blurb, sits to the LEFT of the actor bar */
+.cast-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 10px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: center;
+  font: inherit;
+  color: var(--blue-800, #0d2a52);
+}
+
+.cast-avatar {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  border-radius: 15px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent, var(--blue-600));
+  color: #fff;
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--accent, var(--blue-600)) 38%, transparent);
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+
+.cast-card:hover .cast-avatar {
+  transform: translateY(-1px) scale(1.04);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--accent, var(--blue-600)) 48%, transparent);
+}
+
+.cast-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cast-avatar-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.cast-name {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--blue-800, #0d2a52);
+}
+
+.cast-desc {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cast-hint {
+  color: var(--blue-300);
+  font-weight: 600;
+}
+
+.cast-card:hover .cast-hint {
+  color: var(--blue-500);
 }
 
 .actor-name {
@@ -782,6 +1174,67 @@ body {
 /* ---------- Cells ---------- */
 .cell-wrap {
   min-width: 0;
+  perspective: 1400px;
+}
+
+/* Future / current 3D flip */
+.cell-flip {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cell-flip.flipped {
+  transform: rotateY(180deg);
+}
+
+.cell-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.cell-face-back {
+  transform: rotateY(180deg);
+}
+
+.cell-flip-btn {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  border: 1px solid var(--blue-200);
+  background: var(--blue-50);
+  color: var(--blue-700);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 4;
+}
+
+.cell-flip-btn.current {
+  border-color: #f59e0b;
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.cell:hover .cell-flip-btn {
+  opacity: 0.95;
+}
+
+.cell-flip-btn:hover {
+  filter: brightness(0.96);
 }
 
 .cell {

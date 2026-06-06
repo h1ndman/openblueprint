@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useHistory } from "./useHistory.js";
 import { createInitialState, uid, DEFAULT_COL_WIDTH } from "./initialState.js";
 import Cell from "./Cell.jsx";
+import ActorIcon, { ACTOR_ICONS } from "./ActorIcon.jsx";
+import { fileToDataUrl } from "./fileToDataUrl.js";
 import {
   buildThemeVars,
   actorColor,
@@ -11,7 +13,8 @@ import {
   THEME_PRESETS,
 } from "./theme.js";
 
-const ACTOR_W = 46;
+const CAST_W = 128;
+const ACTOR_W = 48;
 const ROW_TITLE_W = 190;
 
 const ACTOR_COLORS = ["#2563eb", "#0ea5e9", "#0284c7", "#1d4ed8", "#38bdf8", "#075985"];
@@ -20,6 +23,16 @@ const DOC_KEY = "openblueprint-doc";
 
 function isValidDoc(data) {
   return data && Array.isArray(data.phases) && Array.isArray(data.actorGroups);
+}
+
+// A cell can hold two "faces": a future-state and a current-state version.
+// Older cells stored a single flat content object — treat that as the future.
+function splitFaces(raw) {
+  const c = raw || {};
+  if (c.future !== undefined || c.current !== undefined) {
+    return { future: c.future || {}, current: c.current || {} };
+  }
+  return { future: c, current: {} };
 }
 
 function loadDoc() {
@@ -363,17 +376,62 @@ export default function App() {
     e.target.value = "";
   };
 
+  // ---- future / current state flip (which side each cell shows) ----
+  // View-only state: not part of the saved doc or undo history.
+  const [cellSides, setCellSides] = useState({});
+  const sideOf = (key) => cellSides[key] || "future";
+  const flipCell = (key) =>
+    setCellSides((s) => ({ ...s, [key]: sideOf(key) === "future" ? "current" : "future" }));
+
+  // ---- actor profile (avatar / stock icon / persona description) ----
+  const [profileId, setProfileId] = useState(null);
+  const avatarFileRef = useRef(null);
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !profileId) return;
+    const dataUrl = await fileToDataUrl(file);
+    updateActorGroup(profileId, { avatarUrl: dataUrl, icon: "" });
+    e.target.value = "";
+  };
+  useEffect(() => {
+    if (!profileId) return;
+    const onKey = (e) => e.key === "Escape" && setProfileId(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [profileId]);
+
   // ---- image lightbox (2D gallery mirroring the grid) ----
   const [lightbox, setLightbox] = useState(null); // { r, c } selected coords
   const selRef = useRef(null);
 
+  // Collect every cell that has *any* content (text / image / video / link),
+  // with the context (actor row, phase, step) needed for the presentation view.
   const getGallery = () => {
     const cells = [];
     flatRows.forEach((rf, r) => {
       flatSubs.forEach((cf, c) => {
         const k = `${rf.row.id}|${cf.sub.id}`;
-        const u = state.cells[k]?.imageUrl;
-        if (u) cells.push({ r, c, key: k, url: u });
+        const face = splitFaces(state.cells[k])[sideOf(k)] || {};
+        const has =
+          (face.text != null && face.text !== "") ||
+          face.imageUrl ||
+          face.videoUrl ||
+          face.linkUrl;
+        if (has)
+          cells.push({
+            r,
+            c,
+            key: k,
+            content: face,
+            rowName: rf.row.title,
+            phaseName: cf.phase.name,
+            subName: cf.sub.name,
+            side: sideOf(k),
+            accent: gColor(rf.gi),
+            groupId: rf.group.id,
+            groupAvatar: rf.group.avatarUrl,
+            groupIcon: rf.group.icon,
+          });
       });
     });
     return { cells, nCols: flatSubs.length, nRows: flatRows.length };
@@ -383,6 +441,10 @@ export default function App() {
     const { cells } = getGallery();
     const hit = cells.find((x) => x.key === key);
     if (hit) setLightbox({ r: hit.r, c: hit.c });
+  };
+  const openPresent = () => {
+    const { cells } = getGallery();
+    if (cells.length) setLightbox({ r: cells[0].r, c: cells[0].c });
   };
   const lbClose = () => setLightbox(null);
 
@@ -447,7 +509,8 @@ export default function App() {
   const gColor = (gi) => actorColor(gi, groupCount, theme);
 
   const totalCols = flatSubs.length;
-  const gridTemplateColumns = `${ACTOR_W}px ${ROW_TITLE_W}px ${flatSubs
+  const rowTitleWidth = state.rowTitleWidth ?? ROW_TITLE_W;
+  const gridTemplateColumns = `${CAST_W}px ${ACTOR_W}px ${rowTitleWidth}px ${flatSubs
     .map((f) => `${f.sub.width ?? DEFAULT_COL_WIDTH}px`)
     .join(" ")}`;
   const gridTemplateRows = `auto auto ${flatRows.map((f) => `${f.row.height}px`).join(" ")}`;
@@ -527,6 +590,12 @@ export default function App() {
       if (g) g.name = name;
     }, `actor-${groupId}`);
 
+  const updateActorGroup = (groupId, patch, coalesceKey) =>
+    mutate((d) => {
+      const g = d.actorGroups.find((g) => g.id === groupId);
+      if (g) Object.assign(g, patch);
+    }, coalesceKey);
+
   // Rows
   const addActorGroupAfter = (groupId) =>
     mutate((d) => {
@@ -583,11 +652,19 @@ export default function App() {
       }
     }, `colw-${subId}`);
 
+  const setRowTitleWidth = (width) =>
+    mutate((d) => {
+      d.rowTitleWidth = Math.max(120, width);
+    }, "rowtitlew");
+
   // Cells
   const cellKey = (rowId, subId) => `${rowId}|${subId}`;
-  const setCell = (rowId, subId, content, coalesceKey) =>
+  const setFace = (rowId, subId, side, faceContent, coalesceKey) =>
     mutate((d) => {
-      d.cells[cellKey(rowId, subId)] = content;
+      const k = cellKey(rowId, subId);
+      const faces = splitFaces(d.cells[k]);
+      faces[side] = faceContent;
+      d.cells[k] = faces;
     }, coalesceKey);
 
   const setTitle = (title) =>
@@ -742,6 +819,20 @@ export default function App() {
     window.addEventListener("mouseup", onUp);
   };
 
+  const startResizeRowTitle = (e, startWidth) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const onMove = (ev) => setRowTitleWidth(startWidth + (ev.clientX - startX));
+    const onUp = () => {
+      breakCoalesce();
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
   // ---- render ----
   return (
     <div className="app" style={themeVars}>
@@ -765,6 +856,14 @@ export default function App() {
           </button>
           <button className="btn" onClick={redo} disabled={!canRedo} title="Redo (⌘⇧Z)">
             ↷ Redo
+          </button>
+          <span className="divider" />
+          <button
+            className="btn btn-present"
+            onClick={openPresent}
+            title="Present mode — view the blueprint full-screen with edit controls hidden"
+          >
+            ▶ Present
           </button>
           <span className="divider" />
           <button className="btn" onClick={exportDoc} title="Download this blueprint as a file you can re-open or share">
@@ -820,7 +919,7 @@ export default function App() {
           {/* corner */}
           <div
             className="corner"
-            style={{ gridColumn: "1 / 3", gridRow: "1 / 3", color: readableText(themeVars["--blue-900"]) }}
+            style={{ gridColumn: "1 / 4", gridRow: "1 / 3", color: readableText(themeVars["--blue-900"]) }}
           >
             <Editable
               value={state.cornerLabel ?? ""}
@@ -838,7 +937,7 @@ export default function App() {
             let flatIndex = 0;
             state.phases.forEach((phase) => {
               const span = phase.subPhases.length;
-              const start = 3 + flatIndex;
+              const start = 4 + flatIndex;
               // Each phase is a slice of the primary->secondary ramp, sized by
               // its column span so the whole header reads as one continuous fade.
               let phaseStyle = { gridRow: 1, gridColumn: `${start} / ${start + Math.max(span, 1)}` };
@@ -895,7 +994,7 @@ export default function App() {
             <div
               key={f.sub.id}
               className={`sub-head ${isDragging("sub", f.sub.id) ? "dragging" : ""}`}
-              style={{ gridRow: 2, gridColumn: 3 + i }}
+              style={{ gridRow: 2, gridColumn: 4 + i }}
               {...dropProps("sub", f.sub.id, "x")}
             >
               <DropBar axis="x" active={!!hintFor("sub", f.sub.id)} after={hintFor("sub", f.sub.id)?.after} />
@@ -941,13 +1040,42 @@ export default function App() {
             state.actorGroups.forEach((group, gi) => {
               const span = group.rows.length;
               const start = 3 + flatRowIndex;
+              const rowSpan = `${start} / ${start + Math.max(span, 1)}`;
+              out.push(
+                <button
+                  key={`cast-${group.id}`}
+                  className="cast-card"
+                  style={{ gridColumn: 1, gridRow: rowSpan, "--accent": gColor(gi) }}
+                  title="Open actor profile — photo, icon & description"
+                  onClick={() => setProfileId(group.id)}
+                >
+                  <span className="cast-avatar">
+                    {group.avatarUrl ? (
+                      <img src={group.avatarUrl} alt="" />
+                    ) : (
+                      <ActorIcon
+                        kind={group.icon || "user"}
+                        className={`cast-avatar-icon ${group.icon ? "" : "placeholder"}`}
+                      />
+                    )}
+                  </span>
+                  <span className="cast-name">{group.name || "Actor"}</span>
+                  <span className="cast-desc">
+                    {group.description ? (
+                      group.description
+                    ) : (
+                      <span className="cast-hint">+ add description</span>
+                    )}
+                  </span>
+                </button>
+              );
               out.push(
                 <div
                   key={group.id}
                   className={`actor-label ${isDragging("actor", group.id) ? "dragging" : ""}`}
                   style={{
-                    gridColumn: 1,
-                    gridRow: `${start} / ${start + Math.max(span, 1)}`,
+                    gridColumn: 2,
+                    gridRow: rowSpan,
                     "--accent": gColor(gi),
                     color: readableText(gColor(gi)),
                   }}
@@ -989,7 +1117,7 @@ export default function App() {
             <div
               key={f.row.id}
               className={`row-title ${isDragging("row", f.row.id) ? "dragging" : ""}`}
-              style={{ gridColumn: 2, gridRow: 3 + j, "--accent": gColor(f.gi) }}
+              style={{ gridColumn: 3, gridRow: 3 + j, "--accent": gColor(f.gi) }}
               {...dropProps("row", f.row.id, "y")}
             >
               <DropBar axis="y" active={!!hintFor("row", f.row.id)} after={hintFor("row", f.row.id)?.after} />
@@ -1027,6 +1155,11 @@ export default function App() {
                 title="Drag to resize row height"
                 onMouseDown={(e) => startResize(e, f.row.id, f.row.height)}
               />
+              <div
+                className="col-resize"
+                title="Drag to resize this column"
+                onMouseDown={(e) => startResizeRowTitle(e, rowTitleWidth)}
+              />
             </div>
           ))}
 
@@ -1034,21 +1167,42 @@ export default function App() {
           {flatRows.map((rf, j) =>
             flatSubs.map((cf, i) => {
               const key = `${rf.row.id}|${cf.sub.id}`;
+              const faces = splitFaces(state.cells[key]);
+              const side = sideOf(key);
               return (
                 <div
                   key={key}
                   className="cell-wrap"
-                  style={{ gridColumn: 3 + i, gridRow: 3 + j }}
+                  style={{ gridColumn: 4 + i, gridRow: 3 + j }}
                 >
-                  <Cell
-                    accent={gColor(rf.gi)}
-                    content={state.cells[key]}
-                    onChange={(content, ck) =>
-                      setCell(rf.row.id, cf.sub.id, content, ck === "text" ? `cell-${key}` : null)
-                    }
-                    onCommit={breakCoalesce}
-                    onImageClick={() => openLightbox(key)}
-                  />
+                  <div className={`cell-flip ${side === "current" ? "flipped" : ""}`}>
+                    <div className="cell-face cell-face-front">
+                      <Cell
+                        accent={gColor(rf.gi)}
+                        content={faces.future}
+                        stateLabel="Future"
+                        onFlip={() => flipCell(key)}
+                        onChange={(content, ck) =>
+                          setFace(rf.row.id, cf.sub.id, "future", content, ck === "text" ? `cell-${key}-f` : null)
+                        }
+                        onCommit={breakCoalesce}
+                        onImageClick={() => openLightbox(key)}
+                      />
+                    </div>
+                    <div className="cell-face cell-face-back">
+                      <Cell
+                        accent={gColor(rf.gi)}
+                        content={faces.current}
+                        stateLabel="Current"
+                        onFlip={() => flipCell(key)}
+                        onChange={(content, ck) =>
+                          setFace(rf.row.id, cf.sub.id, "current", content, ck === "text" ? `cell-${key}-c` : null)
+                        }
+                        onCommit={breakCoalesce}
+                        onImageClick={() => openLightbox(key)}
+                      />
+                    </div>
+                  </div>
                 </div>
               );
             })
@@ -1089,6 +1243,7 @@ export default function App() {
                 >
                   {cells.map((cell) => {
                     const sel = cell.r === lightbox.r && cell.c === lightbox.c;
+                    const ct = cell.content;
                     return (
                       <div
                         key={cell.key}
@@ -1097,13 +1252,145 @@ export default function App() {
                         style={{ gridColumn: cell.c + 1, gridRow: cell.r + 1 }}
                         onClick={() => setLightbox({ r: cell.r, c: cell.c })}
                       >
-                        <img className="lb-img" src={cell.url} alt="" />
+                        <div className="lb-card" style={{ "--accent": cell.accent }}>
+                          <div className="lb-media">
+                            {ct.imageUrl && <img className="lb-img" src={ct.imageUrl} alt="" />}
+                            {ct.videoUrl && (
+                              <video
+                                className="lb-video"
+                                src={ct.videoUrl}
+                                controls
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            )}
+                            {ct.text != null && ct.text !== "" && (
+                              <p className={`lb-text size-${ct.textSize || "m"}`}>{ct.text}</p>
+                            )}
+                            {ct.linkUrl && (
+                              <a
+                                className="lb-link"
+                                href={ct.linkUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                🔗 {ct.linkLabel || ct.linkUrl}
+                              </a>
+                            )}
+                          </div>
+                          <div className="lb-caption">
+                            {cell.rowName ? (
+                              <button
+                                className="lb-cap-actor"
+                                title="Read this actor's profile"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setProfileId(cell.groupId);
+                                }}
+                              >
+                                <span className="lb-cap-avatar">
+                                  {cell.groupAvatar ? (
+                                    <img src={cell.groupAvatar} alt="" />
+                                  ) : (
+                                    <ActorIcon kind={cell.groupIcon || "user"} className="lb-cap-icon" />
+                                  )}
+                                </span>
+                                {cell.rowName}
+                              </button>
+                            ) : (
+                              <span />
+                            )}
+                            <span className="lb-cap-step">
+                              {cell.phaseName} · {cell.subName}
+                              {cell.side === "current" && <em className="lb-cap-state">Current</em>}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
               <div className="lb-hint">← → across · ↑ ↓ rows · Esc to close</div>
+            </div>
+          );
+        })()}
+
+      {profileId &&
+        (() => {
+          const gi = state.actorGroups.findIndex((g) => g.id === profileId);
+          const g = state.actorGroups[gi];
+          if (!g) return null;
+          return (
+            <div className="profile-overlay" onClick={() => setProfileId(null)}>
+              <div
+                className="profile-card"
+                style={{ "--accent": gColor(gi) }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  className="profile-close"
+                  onClick={() => setProfileId(null)}
+                  title="Close (Esc)"
+                >
+                  ×
+                </button>
+                <div className="profile-head">
+                  <div className="profile-avatar">
+                    {g.avatarUrl ? (
+                      <img src={g.avatarUrl} alt="" />
+                    ) : (
+                      <ActorIcon kind={g.icon || "user"} className="profile-avatar-icon" />
+                    )}
+                  </div>
+                  <input
+                    className="profile-name"
+                    value={g.name}
+                    placeholder="Actor name"
+                    onChange={(e) => updateActorGroup(g.id, { name: e.target.value }, `actor-${g.id}`)}
+                    onBlur={breakCoalesce}
+                  />
+                </div>
+
+                <div className="profile-controls">
+                  <button className="profile-btn" onClick={() => avatarFileRef.current?.click()}>
+                    ⬆ Photo
+                  </button>
+                  {ACTOR_ICONS.map(([kind, label]) => (
+                    <button
+                      key={kind}
+                      className={`profile-btn ${!g.avatarUrl && g.icon === kind ? "active" : ""}`}
+                      onClick={() => updateActorGroup(g.id, { icon: kind, avatarUrl: "" })}
+                    >
+                      <ActorIcon kind={kind} className="profile-btn-icon" />
+                      {label}
+                    </button>
+                  ))}
+                  {(g.avatarUrl || g.icon) && (
+                    <button
+                      className="profile-btn danger"
+                      onClick={() => updateActorGroup(g.id, { avatarUrl: "", icon: "" })}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+
+                <textarea
+                  className="profile-desc"
+                  value={g.description || ""}
+                  placeholder="Describe this actor — who they are, their goals, context, pain points and responsibilities…"
+                  onChange={(e) => updateActorGroup(g.id, { description: e.target.value }, `desc-${g.id}`)}
+                  onBlur={breakCoalesce}
+                />
+              </div>
+              <input
+                ref={avatarFileRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={handleAvatarUpload}
+              />
             </div>
           );
         })()}
