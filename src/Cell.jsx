@@ -13,16 +13,23 @@ export default function Cell({ accent, content, onChange, onCommit, onImageClick
   const c = content || {};
   const fileInputRef = useRef(null);
   const videoInputRef = useRef(null);
-  const hasContent = c.text || c.imageUrl || c.videoUrl || c.linkUrl;
+  const hasContent = c.text != null || c.imageUrl || c.videoUrl || c.linkUrl;
 
   const update = (patch, coalesceKey) =>
     onChange({ ...c, ...patch }, coalesceKey);
+
+  // A cell holds one kind of content at a time, except text + link which may
+  // share a cell. Adding image/video clears text & link (and vice versa).
+  const NO_MEDIA = { imageUrl: "", videoUrl: "", videoName: "" };
+  const NO_TEXT_LINK = { text: undefined, linkUrl: "", linkLabel: "" };
+
+  const addText = () => update({ ...NO_MEDIA, text: c.text ?? "" });
 
   const handleUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const dataUrl = await fileToDataUrl(file);
-    update({ imageUrl: dataUrl });
+    update({ ...NO_TEXT_LINK, videoUrl: "", videoName: "", imageUrl: dataUrl });
     e.target.value = "";
   };
 
@@ -31,7 +38,7 @@ export default function Cell({ accent, content, onChange, onCommit, onImageClick
     if (!file) return;
     // Embed as a data URL so the video persists and travels inside saved files.
     const dataUrl = await fileToDataUrl(file);
-    update({ videoUrl: dataUrl, videoName: file.name });
+    update({ ...NO_TEXT_LINK, imageUrl: "", videoUrl: dataUrl, videoName: file.name });
     e.target.value = "";
   };
 
@@ -43,16 +50,14 @@ export default function Cell({ accent, content, onChange, onCommit, onImageClick
       return;
     }
     const label = window.prompt("Link label (optional)", c.linkLabel || "") || url;
-    update({ linkUrl: url.trim(), linkLabel: label.trim() });
+    update({ ...NO_MEDIA, linkUrl: url.trim(), linkLabel: label.trim() });
   };
+
+  const clearCell = () => onChange({}, null);
 
   const mediaButtons = (
     <>
-      <button
-        className="cell-tool"
-        title="Add / edit text"
-        onClick={() => update({ text: c.text ?? "" })}
-      >
+      <button className="cell-tool" title="Add / edit text" onClick={addText}>
         T
       </button>
       <button
@@ -92,7 +97,14 @@ export default function Cell({ accent, content, onChange, onCommit, onImageClick
         onChange={handleUploadVideo}
       />
 
-      {hasContent && <div className="cell-toolbar">{mediaButtons}</div>}
+      {hasContent && (
+        <>
+          <div className="cell-toolbar">{mediaButtons}</div>
+          <button className="cell-clear" title="Clear cell" onClick={clearCell}>
+            ×
+          </button>
+        </>
+      )}
 
       {!hasContent && (
         <div className="cell-empty">
@@ -110,26 +122,12 @@ export default function Cell({ accent, content, onChange, onCommit, onImageClick
             title="Click to view"
             onClick={() => onImageClick?.()}
           />
-          <button
-            className="cell-image-remove"
-            title="Remove image"
-            onClick={() => update({ imageUrl: "" })}
-          >
-            ×
-          </button>
         </div>
       )}
 
       {c.videoUrl && (
         <div className="cell-image-wrap">
           <video className="cell-video" src={c.videoUrl} controls preload="metadata" />
-          <button
-            className="cell-image-remove"
-            title="Remove video"
-            onClick={() => update({ videoUrl: "", videoName: "" })}
-          >
-            ×
-          </button>
         </div>
       )}
 
