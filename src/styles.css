@@ -838,6 +838,19 @@ body {
   background: var(--blue-100);
 }
 
+.cell-tool.active {
+  background: var(--blue-600);
+  border-color: var(--blue-600);
+  color: #fff;
+}
+
+.cell-tool-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 1px;
+  background: var(--blue-200);
+}
+
 .cell-empty {
   position: relative;
   flex: 1;
@@ -885,6 +898,18 @@ body {
   color: var(--ink);
   line-height: 1.4;
   min-height: 24px;
+}
+
+.cell-text.size-s {
+  font-size: 10.5px;
+}
+
+.cell-text.size-m {
+  font-size: 12.5px;
+}
+
+.cell-text.size-l {
+  font-size: 16px;
 }
 
 .cell-text:focus {

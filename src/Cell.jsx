@@ -91,7 +91,28 @@ export default function Cell({ accent, content, onChange, onCommit, onImageClick
       {hasContent && (
         <>
           {!hasMedia && (
-            <div className="cell-toolbar">{tools(["text", "link"])}</div>
+            <div className="cell-toolbar">
+              {tools(["text", "link"])}
+              {c.text != null && (
+                <>
+                  <span className="cell-tool-sep" />
+                  {[
+                    ["s", "Small text"],
+                    ["m", "Medium text"],
+                    ["l", "Large text"],
+                  ].map(([s, label]) => (
+                    <button
+                      key={s}
+                      className={`cell-tool ${(c.textSize || "m") === s ? "active" : ""}`}
+                      title={label}
+                      onClick={() => update({ textSize: s })}
+                    >
+                      {s.toUpperCase()}
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
           )}
           <button
             className="cell-clear"
@@ -132,7 +153,7 @@ export default function Cell({ accent, content, onChange, onCommit, onImageClick
 
       {(c.text != null && c.text !== undefined) && (
         <textarea
-          className="cell-text"
+          className={`cell-text size-${c.textSize || "m"}`}
           value={c.text}
           placeholder="Type here…"
           onChange={(e) => update({ text: e.target.value }, "text")}
