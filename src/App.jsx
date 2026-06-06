@@ -385,6 +385,7 @@ export default function App() {
 
   // ---- actor profile (avatar / stock icon / persona description) ----
   const [profileId, setProfileId] = useState(null);
+  const [solvesView, setSolvesView] = useState(null); // read-only "solves for" in present mode
   const avatarFileRef = useRef(null);
   const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -399,6 +400,17 @@ export default function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [profileId]);
+  useEffect(() => {
+    if (!solvesView) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setSolvesView(null);
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [solvesView]);
 
   // ---- image lightbox (2D gallery mirroring the grid) ----
   const [lightbox, setLightbox] = useState(null); // { r, c } selected coords
@@ -671,6 +683,15 @@ export default function App() {
       faces[side] = faceContent;
       d.cells[k] = faces;
     }, coalesceKey);
+
+  // Update the "solves for" rationale on a specific cell face (used by present mode).
+  const setSolves = (key, side, patch) =>
+    mutate((d) => {
+      const faces = splitFaces(d.cells[key]);
+      const cur = faces[side] || {};
+      faces[side] = { ...cur, solves: { ...(cur.solves || {}), ...patch } };
+      d.cells[key] = faces;
+    }, `solves-${key}-${side}`);
 
   const setTitle = (title) =>
     mutate((d) => {
@@ -1188,7 +1209,7 @@ export default function App() {
                         stateLabel="Future"
                         onFlip={() => flipCell(key)}
                         onChange={(content, ck) =>
-                          setFace(rf.row.id, cf.sub.id, "future", content, ck === "text" ? `cell-${key}-f` : null)
+                          setFace(rf.row.id, cf.sub.id, "future", content, ck ? `cell-${key}-f-${ck}` : null)
                         }
                         onCommit={breakCoalesce}
                         onImageClick={() => openLightbox(key)}
@@ -1201,7 +1222,7 @@ export default function App() {
                         stateLabel="Current"
                         onFlip={() => flipCell(key)}
                         onChange={(content, ck) =>
-                          setFace(rf.row.id, cf.sub.id, "current", content, ck === "text" ? `cell-${key}-c` : null)
+                          setFace(rf.row.id, cf.sub.id, "current", content, ck ? `cell-${key}-c-${ck}` : null)
                         }
                         onCommit={breakCoalesce}
                         onImageClick={() => openLightbox(key)}
@@ -1352,6 +1373,23 @@ export default function App() {
                                 {cell.side === "current" ? "Current" : "Future"} ⇄
                               </button>
                             )}
+                            {!empty && (
+                              <button
+                                className={`lb-solves ${
+                                  ct.solves &&
+                                  (ct.solves.customer || ct.solves.business || ct.solves.kpis)
+                                    ? "filled"
+                                    : ""
+                                }`}
+                                title="Solves for — customer & business problems and KPIs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSolvesView({ key: cell.key, side: cell.side });
+                                }}
+                              >
+                                ◇ Solves for
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1361,6 +1399,46 @@ export default function App() {
               </div>
 
               <div className="lb-hint">← → across · ↑ ↓ rows · click ⇄ to flip · Esc</div>
+            </div>
+          );
+        })()}
+
+      {solvesView &&
+        (() => {
+          const close = () => {
+            breakCoalesce();
+            setSolvesView(null);
+          };
+          const solves =
+            (splitFaces(state.cells[solvesView.key])[solvesView.side] || {}).solves || {};
+          return (
+            <div className="solves-overlay" onClick={close}>
+              <div className="solves-card" onClick={(e) => e.stopPropagation()}>
+                <div className="solves-head">
+                  <span className="solves-title">◇ Solves for</span>
+                  <button className="solves-close" title="Close" onClick={close}>
+                    ×
+                  </button>
+                </div>
+                {[
+                  ["customer", "Customer problem addressed", "What pain does this remove for the customer?"],
+                  ["business", "Business problem addressed", "What business problem or opportunity does this serve?"],
+                  ["kpis", "KPIs supported", "Which metrics does this move? (e.g. activation, retention, CSAT)"],
+                ].map(([field, label, placeholder]) => (
+                  <label key={field} className="solves-field">
+                    <span className="solves-label">{label}</span>
+                    <textarea
+                      className="solves-input"
+                      value={solves[field] || ""}
+                      placeholder={placeholder}
+                      onChange={(e) =>
+                        setSolves(solvesView.key, solvesView.side, { [field]: e.target.value })
+                      }
+                      onBlur={breakCoalesce}
+                    />
+                  </label>
+                ))}
+              </div>
             </div>
           );
         })()}

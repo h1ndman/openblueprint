@@ -1,4 +1,5 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { fileToDataUrl } from "./fileToDataUrl.js";
 
 export default function Cell({ accent, content, onChange, onCommit, onImageClick, stateLabel, onFlip }) {
@@ -9,6 +10,12 @@ export default function Cell({ accent, content, onChange, onCommit, onImageClick
 
   const update = (patch, coalesceKey) =>
     onChange({ ...c, ...patch }, coalesceKey);
+
+  const [solvesOpen, setSolvesOpen] = useState(false);
+  const solves = c.solves || {};
+  const hasSolves = !!(solves.customer || solves.business || solves.kpis);
+  const updateSolves = (patch) =>
+    update({ solves: { ...solves, ...patch } }, "solves");
 
   // A cell holds one kind of content at a time, except text + link which may
   // share a cell. Adding image/video clears text & link (and vice versa).
@@ -173,6 +180,67 @@ export default function Cell({ accent, content, onChange, onCommit, onImageClick
         >
           {stateLabel} ⇄
         </button>
+      )}
+
+      {hasContent && (
+        <button
+          className={`cell-solves-btn ${hasSolves ? "filled" : ""}`}
+          title="Solves for — customer & business problems and KPIs"
+          onClick={(e) => {
+            e.stopPropagation();
+            setSolvesOpen(true);
+          }}
+        >
+          ◇ Solves for
+        </button>
+      )}
+
+      {solvesOpen && createPortal(
+        <div
+          className="solves-overlay"
+          onClick={(e) => {
+            e.stopPropagation();
+            setSolvesOpen(false);
+            onCommit?.();
+          }}
+        >
+          <div
+            className="solves-card"
+            style={{ "--accent": accent }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="solves-head">
+              <span className="solves-title">◇ Solves for</span>
+              <button
+                className="solves-close"
+                title="Close"
+                onClick={() => {
+                  setSolvesOpen(false);
+                  onCommit?.();
+                }}
+              >
+                ×
+              </button>
+            </div>
+            {[
+              ["customer", "Customer problem addressed", "What pain does this remove for the customer?"],
+              ["business", "Business problem addressed", "What business problem or opportunity does this serve?"],
+              ["kpis", "KPIs supported", "Which metrics does this move? (e.g. activation, retention, CSAT)"],
+            ].map(([field, label, placeholder]) => (
+              <label key={field} className="solves-field">
+                <span className="solves-label">{label}</span>
+                <textarea
+                  className="solves-input"
+                  value={solves[field] || ""}
+                  placeholder={placeholder}
+                  onChange={(e) => updateSolves({ [field]: e.target.value })}
+                  onBlur={onCommit}
+                />
+              </label>
+            ))}
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
