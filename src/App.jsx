@@ -326,17 +326,16 @@ export default function App() {
 
   const themeVars = useMemo(() => buildThemeVars(theme), [theme]);
 
-  // ---- saving: autosave to localStorage + file export/import ----
-  const [saveStatus, setSaveStatus] = useState("saved"); // saving | saved | full
+  // ---- saving: best-effort autosave to localStorage + file export/import ----
+  // Autosave is a convenience only; the durable copy is the exported .obp.json
+  // (Save / Open). localStorage can fill up with embedded media, so failures
+  // here are silently ignored.
   useEffect(() => {
-    setSaveStatus("saving");
     const t = setTimeout(() => {
       try {
         localStorage.setItem(DOC_KEY, JSON.stringify(state));
-        setSaveStatus("saved");
       } catch {
-        // Most likely the browser storage quota (large embedded media).
-        setSaveStatus("full");
+        // Storage quota exceeded (large embedded media) — rely on file Save.
       }
     }, 500);
     return () => clearTimeout(t);
@@ -905,13 +904,6 @@ export default function App() {
             hidden
             onChange={importDoc}
           />
-          <span className={`save-status ${saveStatus}`} title="Your work autosaves in this browser. Use Save to keep a file.">
-            {saveStatus === "saving"
-              ? "Saving…"
-              : saveStatus === "full"
-              ? "⚠ Autosave full — use Save"
-              : "✓ Autosaved"}
-          </span>
           <span className="divider" />
           <div className="theme-anchor">
             <button
