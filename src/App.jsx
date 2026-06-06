@@ -3,7 +3,7 @@ import { useHistory } from "./useHistory.js";
 import { createInitialState, uid, DEFAULT_COL_WIDTH } from "./initialState.js";
 import Cell from "./Cell.jsx";
 import ActorIcon, { ACTOR_ICONS } from "./ActorIcon.jsx";
-import { fileToDataUrl } from "./fileToDataUrl.js";
+import { imageFileToDataUrl } from "./fileToDataUrl.js";
 import {
   buildThemeVars,
   actorColor,
@@ -389,7 +389,7 @@ export default function App() {
   const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !profileId) return;
-    const dataUrl = await fileToDataUrl(file);
+    const dataUrl = await imageFileToDataUrl(file, 512);
     updateActorGroup(profileId, { avatarUrl: dataUrl, icon: "" });
     e.target.value = "";
   };

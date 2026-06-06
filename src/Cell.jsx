@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { fileToDataUrl } from "./fileToDataUrl.js";
+import { fileToDataUrl, imageFileToDataUrl } from "./fileToDataUrl.js";
 
 export default function Cell({ accent, content, onChange, onCommit, onImageClick, stateLabel, onFlip }) {
   const c = content || {};
@@ -27,7 +27,7 @@ export default function Cell({ accent, content, onChange, onCommit, onImageClick
   const handleUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const dataUrl = await fileToDataUrl(file);
+    const dataUrl = await imageFileToDataUrl(file);
     update({ ...NO_TEXT_LINK, videoUrl: "", videoName: "", imageUrl: dataUrl });
     e.target.value = "";
   };
