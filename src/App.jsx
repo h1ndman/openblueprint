@@ -955,10 +955,7 @@ export default function App() {
       <div className="board-scroll">
         <div className="grid" style={{ gridTemplateColumns, gridTemplateRows }}>
           {/* corner: optional anchor image + high-level blueprint description */}
-          <div
-            className="corner"
-            style={{ gridColumn: "1 / 4", gridRow: "1 / 3", color: readableText(themeVars["--blue-900"]) }}
-          >
+          <div className="corner" style={{ gridColumn: "1 / 4", gridRow: "1 / 3" }}>
             {state.cornerImage ? (
               <div className="corner-img-wrap">
                 <img className="corner-img" src={state.cornerImage} alt="" />
