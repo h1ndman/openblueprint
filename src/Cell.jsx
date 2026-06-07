@@ -11,6 +11,7 @@ export default function Cell({ accent, content, onChange, onCommit, onImageClick
   const update = (patch, coalesceKey) =>
     onChange({ ...c, ...patch }, coalesceKey);
 
+  const [uploadPct, setUploadPct] = useState(null); // null = idle, 0..100 = loading
   const [solvesOpen, setSolvesOpen] = useState(false);
   const solves = c.solves || {};
   const hasSolves = !!(solves.customer || solves.business || solves.kpis);
@@ -27,17 +28,29 @@ export default function Cell({ accent, content, onChange, onCommit, onImageClick
   const handleUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const dataUrl = await imageFileToDataUrl(file);
-    update({ ...NO_TEXT_LINK, videoUrl: "", videoName: "", imageUrl: dataUrl });
+    setUploadPct(0);
+    try {
+      const dataUrl = await imageFileToDataUrl(file, 1600, 0.85, (p) =>
+        setUploadPct(Math.round(p * 100))
+      );
+      update({ ...NO_TEXT_LINK, videoUrl: "", videoName: "", imageUrl: dataUrl });
+    } finally {
+      setUploadPct(null);
+    }
     e.target.value = "";
   };
 
   const handleUploadVideo = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // Embed as a data URL so the video persists and travels inside saved files.
-    const dataUrl = await fileToDataUrl(file);
-    update({ ...NO_TEXT_LINK, imageUrl: "", videoUrl: dataUrl, videoName: file.name });
+    setUploadPct(0);
+    try {
+      // Embed as a data URL so the video persists and travels inside saved files.
+      const dataUrl = await fileToDataUrl(file, (p) => setUploadPct(Math.round(p * 100)));
+      update({ ...NO_TEXT_LINK, imageUrl: "", videoUrl: dataUrl, videoName: file.name });
+    } finally {
+      setUploadPct(null);
+    }
     e.target.value = "";
   };
 
@@ -86,6 +99,25 @@ export default function Cell({ accent, content, onChange, onCommit, onImageClick
         hidden
         onChange={handleUploadVideo}
       />
+
+      {uploadPct != null && (
+        <div className="cell-uploading">
+          <div className="cell-uploading-label">
+            {uploadPct >= 100
+              ? "Finishing…"
+              : uploadPct > 0
+              ? `Loading… ${uploadPct}%`
+              : "Loading…"}
+          </div>
+          <div className="cell-progress">
+            {uploadPct > 0 && uploadPct < 100 ? (
+              <div className="cell-progress-bar" style={{ width: `${uploadPct}%` }} />
+            ) : (
+              <div className="cell-progress-bar indeterminate" />
+            )}
+          </div>
+        </div>
+      )}
 
       {hasContent && (
         <div className="cell-popover">

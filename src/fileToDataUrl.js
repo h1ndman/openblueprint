@@ -1,7 +1,13 @@
-export function fileToDataUrl(file) {
+export function fileToDataUrl(file, onProgress) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
+    reader.onprogress = (e) => {
+      if (onProgress && e.lengthComputable) onProgress(e.loaded / e.total);
+    };
+    reader.onload = () => {
+      if (onProgress) onProgress(1);
+      resolve(reader.result);
+    };
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
@@ -12,13 +18,17 @@ export function fileToDataUrl(file) {
 // Animated GIFs and non-images are passed through untouched (canvas would
 // flatten a GIF). Images already small enough keep their original bytes so we
 // never upscale or needlessly re-compress.
-export function imageFileToDataUrl(file, maxWidth = 1600, quality = 0.85) {
+export function imageFileToDataUrl(file, maxWidth = 1600, quality = 0.85, onProgress) {
   if (!file || file.type === "image/gif" || !file.type?.startsWith("image/")) {
-    return fileToDataUrl(file);
+    return fileToDataUrl(file, onProgress);
   }
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
+    reader.onprogress = (e) => {
+      if (onProgress && e.lengthComputable) onProgress(e.loaded / e.total);
+    };
     reader.onload = () => {
+      if (onProgress) onProgress(1);
       const original = reader.result;
       const img = new Image();
       img.onload = () => {
