@@ -954,40 +954,48 @@ export default function App() {
 
       <div className="board-scroll">
         <div className="grid" style={{ gridTemplateColumns, gridTemplateRows }}>
-          {/* corner: optional anchor image + high-level blueprint description */}
-          <div
-            className="corner"
-            style={{ gridColumn: "2 / 4", gridRow: "1 / 3", color: readableText(themeVars["--blue-900"]) }}
-          >
+          {/* top-left: optional square company logo (hover to add) */}
+          <div className="logo-cell" style={{ gridColumn: 1, gridRow: "1 / 3" }}>
             {state.cornerImage ? (
-              <div className="corner-img-wrap">
-                <img className="corner-img" src={state.cornerImage} alt="" />
-                <div className="corner-img-actions">
+              <div className="logo-wrap">
+                <img className="logo-img" src={state.cornerImage} alt="Company logo" />
+                <div className="logo-actions">
                   <button
-                    className="corner-img-btn"
-                    title="Replace image"
+                    className="logo-btn"
+                    title="Replace logo"
                     onClick={() => cornerImgRef.current?.click()}
                   >
                     ⟳
                   </button>
-                  <button
-                    className="corner-img-btn"
-                    title="Remove image"
-                    onClick={() => setCornerImage("")}
-                  >
+                  <button className="logo-btn" title="Remove logo" onClick={() => setCornerImage("")}>
                     ×
                   </button>
                 </div>
               </div>
             ) : (
               <button
-                className="corner-img-add"
-                title="Add an anchor image"
+                className="logo-add"
+                title="Add a company logo"
                 onClick={() => cornerImgRef.current?.click()}
               >
-                + Image
+                <span>+</span>
+                <span className="logo-add-label">Logo</span>
               </button>
             )}
+            <input
+              ref={cornerImgRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={handleCornerImage}
+            />
+          </div>
+
+          {/* corner: high-level blueprint description */}
+          <div
+            className="corner"
+            style={{ gridColumn: "2 / 4", gridRow: "1 / 3", color: readableText(themeVars["--blue-900"]) }}
+          >
             <Editable
               value={state.cornerLabel ?? ""}
               onChange={setCornerLabel}
@@ -996,13 +1004,6 @@ export default function App() {
               className="corner-label"
               coalesceKey="corner"
               multiline
-            />
-            <input
-              ref={cornerImgRef}
-              type="file"
-              accept="image/*"
-              hidden
-              onChange={handleCornerImage}
             />
           </div>
 
