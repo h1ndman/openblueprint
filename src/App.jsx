@@ -985,8 +985,7 @@ export default function App() {
                 title="Add an anchor image"
                 onClick={() => cornerImgRef.current?.click()}
               >
-                <span>+</span>
-                <span className="corner-img-add-label">Image</span>
+                + Image
               </button>
             )}
             <Editable
