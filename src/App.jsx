@@ -41,7 +41,12 @@ function loadDoc() {
     const raw = localStorage.getItem(DOC_KEY);
     if (raw) {
       const data = JSON.parse(raw);
-      if (isValidDoc(data)) return data;
+      if (isValidDoc(data)) {
+        // The corner went from a static "Actors / Lanes" label to an optional
+        // high-level description; clear the old default so the new prompt shows.
+        if (data.cornerLabel === "Actors / Lanes") data.cornerLabel = "";
+        return data;
+      }
     }
   } catch {}
   return null;
@@ -703,6 +708,20 @@ export default function App() {
       d.cornerLabel = label;
     }, "corner");
 
+  const setCornerImage = (dataUrl) =>
+    mutate((d) => {
+      d.cornerImage = dataUrl;
+    }, null);
+
+  const cornerImgRef = useRef(null);
+  const handleCornerImage = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const dataUrl = await imageFileToDataUrl(file, 800);
+    setCornerImage(dataUrl);
+    e.target.value = "";
+  };
+
   // ---- drag & drop reordering ----
   const [drag, setDrag] = useState(null); // { kind, id }
   const [dropHint, setDropHint] = useState(null); // { kind, id, after }
@@ -935,18 +954,56 @@ export default function App() {
 
       <div className="board-scroll">
         <div className="grid" style={{ gridTemplateColumns, gridTemplateRows }}>
-          {/* corner */}
+          {/* corner: optional anchor image + high-level blueprint description */}
           <div
             className="corner"
             style={{ gridColumn: "1 / 4", gridRow: "1 / 3", color: readableText(themeVars["--blue-900"]) }}
           >
+            {state.cornerImage ? (
+              <div className="corner-img-wrap">
+                <img className="corner-img" src={state.cornerImage} alt="" />
+                <div className="corner-img-actions">
+                  <button
+                    className="corner-img-btn"
+                    title="Replace image"
+                    onClick={() => cornerImgRef.current?.click()}
+                  >
+                    ⟳
+                  </button>
+                  <button
+                    className="corner-img-btn"
+                    title="Remove image"
+                    onClick={() => setCornerImage("")}
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                className="corner-img-add"
+                title="Add an anchor image"
+                onClick={() => cornerImgRef.current?.click()}
+              >
+                <span>+</span>
+                <span className="corner-img-add-label">Image</span>
+              </button>
+            )}
             <Editable
               value={state.cornerLabel ?? ""}
               onChange={setCornerLabel}
               onCommit={breakCoalesce}
-              placeholder="Actors / Lanes"
+              placeholder="Describe this blueprint at a high level…"
               className="corner-label"
               coalesceKey="corner"
+              multiline
+            />
+            <input
+              ref={cornerImgRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={handleCornerImage}
             />
           </div>
 

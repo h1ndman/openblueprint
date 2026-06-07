@@ -24,7 +24,8 @@ function makeRow(title) {
 export function createInitialState() {
   return {
     title: "OpenBlueprint",
-    cornerLabel: "Actors / Lanes",
+    cornerLabel: "",
+    cornerImage: "",
     phases: PHASE_NAMES.map(makePhase),
     actorGroups: [
       {
