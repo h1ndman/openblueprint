@@ -1,6 +1,7 @@
 import React, { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fileToDataUrl, imageFileToDataUrl } from "./fileToDataUrl.js";
+import { isDirectVideo, isVideoLink, youTubeThumb } from "./linkUtils.js";
 
 export default function Cell({ accent, content, onChange, onCommit, onImageClick, stateLabel, onFlip }) {
   const c = content || {};
@@ -189,7 +190,28 @@ export default function Cell({ accent, content, onChange, onCommit, onImageClick
         />
       )}
 
-      {c.linkUrl && (
+      {c.linkUrl && isDirectVideo(c.linkUrl) && (
+        <div className="cell-image-wrap">
+          <video className="cell-video" src={c.linkUrl} controls preload="metadata" />
+        </div>
+      )}
+
+      {c.linkUrl && !isDirectVideo(c.linkUrl) && isVideoLink(c.linkUrl) && (
+        <a
+          className="cell-videolink"
+          href={c.linkUrl}
+          target="_blank"
+          rel="noreferrer"
+          title={c.linkUrl}
+          onClick={(e) => e.stopPropagation()}
+          style={youTubeThumb(c.linkUrl) ? { backgroundImage: `url(${youTubeThumb(c.linkUrl)})` } : undefined}
+        >
+          <span className="cell-videolink-play">▶</span>
+          <span className="cell-videolink-label">{c.linkLabel || c.linkUrl}</span>
+        </a>
+      )}
+
+      {c.linkUrl && !isVideoLink(c.linkUrl) && (
         <a
           className="cell-link"
           href={c.linkUrl}

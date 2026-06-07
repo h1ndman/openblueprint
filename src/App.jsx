@@ -4,6 +4,7 @@ import { createInitialState, uid, DEFAULT_COL_WIDTH } from "./initialState.js";
 import Cell from "./Cell.jsx";
 import ActorIcon, { ACTOR_ICONS } from "./ActorIcon.jsx";
 import { imageFileToDataUrl } from "./fileToDataUrl.js";
+import { isDirectVideo, isVideoLink, youTubeThumb } from "./linkUtils.js";
 import {
   buildThemeVars,
   actorColor,
@@ -1336,7 +1337,36 @@ export default function App() {
                             {ct.text != null && ct.text !== "" && (
                               <p className={`lb-text size-${ct.textSize || "m"}`}>{ct.text}</p>
                             )}
-                            {ct.linkUrl && (
+                            {ct.linkUrl && isDirectVideo(ct.linkUrl) && (
+                              <video
+                                className="lb-video"
+                                src={ct.linkUrl}
+                                controls
+                                preload="metadata"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            )}
+                            {ct.linkUrl && !isDirectVideo(ct.linkUrl) && isVideoLink(ct.linkUrl) && (
+                              <a
+                                className="cell-videolink lb-videolink"
+                                href={ct.linkUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={ct.linkUrl}
+                                onClick={(e) => e.stopPropagation()}
+                                style={
+                                  youTubeThumb(ct.linkUrl)
+                                    ? { backgroundImage: `url(${youTubeThumb(ct.linkUrl)})` }
+                                    : undefined
+                                }
+                              >
+                                <span className="cell-videolink-play">▶</span>
+                                <span className="cell-videolink-label">
+                                  {ct.linkLabel || ct.linkUrl}
+                                </span>
+                              </a>
+                            )}
+                            {ct.linkUrl && !isVideoLink(ct.linkUrl) && (
                               <a
                                 className="lb-link"
                                 href={ct.linkUrl}
